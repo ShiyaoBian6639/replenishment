@@ -71,7 +71,7 @@ po_lst = list(po.keys())
 plt.title("Inventory Replenishment: Ss Policy VS Labelling Policy")
 
 b = 9
-h = 9
+h = 0
 t = 1
 # e2e recover optimal re-order quantity
 t = 0
@@ -84,7 +84,7 @@ for i in range(1, horizon):
     inventory_level[i] = inventory_level[i - 1] + inventory_level[i] - future_demand[i]
     if reorder_point_arr[i] and t <= len(po_reaching):
         vm = po_reaching[t]
-        delta_t = int(np.floor(b * (po_reaching[t + 1] - po_reaching[t]) / h + b))  # s*
+        delta_t = int(np.floor(b * (po_reaching[t + 1] - po_reaching[t]) / (h + b)))  # s*
         cum_demand = np.sum(future_demand[vm:vm + delta_t])
         optimal_qty = max(cum_demand + np.sum(future_demand[i:vm]) - inventory_level[i], 0)
         inventory_level[vm] += optimal_qty

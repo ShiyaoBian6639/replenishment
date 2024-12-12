@@ -11,18 +11,19 @@ from tensorflow.keras.models import load_model
 from tensorflow.keras.callbacks import ModelCheckpoint
 from keras.src.saving import serialization_lib
 import time
+
 serialization_lib.enable_unsafe_deserialization()
 
 start = time.perf_counter()
 DROPOUT_RATE = 0.01
 MAX_SKU_ID = 100
 MAX_STORE_ID = 50
-BATCH_SIZE = 64
+BATCH_SIZE = 1024
 LEARNING_RATE = 0.015
 EPOCHS = 50
 seq_len = 5
-b = 0.4
-h = 0.4
+b = 9
+h = 1
 model_file_name = "e2e.keras"
 log_dir = os.path.join("logs", "scalars")
 train_input_dynamic_ = []
@@ -42,7 +43,7 @@ for sku in range(1, MAX_SKU_ID + 1):
         interval = 10  # number of days between consecutive reorder points
 
         reorder_point_arr = get_reorder_point(horizon, interval)
-        n_reorder_pts = len (np.where(reorder_point_arr)[0])  # number of reorder points in review period
+        n_reorder_pts = len(np.where(reorder_point_arr)[0])  # number of reorder points in review period
         history_lead_time = get_lead_time(mu_lead_time, std_lead_time, 50)
         history_demand = abs(get_demand(mu_demand, std_demand, 50))
         future_lead_time = abs(get_lead_time(mu_lead_time, std_lead_time, n_reorder_pts))
@@ -61,7 +62,7 @@ for sku in range(1, MAX_SKU_ID + 1):
                 inventory_level[i] = inventory_level[i - 1] + inventory_level[i] - future_demand[i]
                 if reorder_point_arr[i] and t <= len(po_reaching):
                     vm = po_reaching[t]
-                    delta_t = int(np.floor(b * (po_reaching[t + 1] - po_reaching[t]) / h + b))  # s*
+                    delta_t = int(np.floor(b * (po_reaching[t + 1] - po_reaching[t]) / (h + b)))  # s*
                     cum_demand = np.sum(future_demand[vm:vm + delta_t])
                     optimal_qty = max(cum_demand + np.sum(future_demand[i:vm]) - inventory_level[i], 0)
                     inventory_level[vm] += optimal_qty
@@ -113,8 +114,7 @@ model = create_dcnn_model(
     max_cat_id=[MAX_SKU_ID, MAX_STORE_ID],
 )
 adam = optimizers.Adam(learning_rate=LEARNING_RATE)
-model.compile(loss="m"
-                   "se", optimizer=adam, metrics=["mse", "mae"])
+model.compile(loss="mse", optimizer=adam, metrics=["mse", "mae"])
 # Define checkpoint and fit model
 checkpoint = ModelCheckpoint(model_file_name, monitor="loss", save_best_only=True, mode="min", verbose=1)
 tensorboard_callback = tf.keras.callbacks.TensorBoard(
@@ -130,7 +130,7 @@ history = model.fit(
     verbose=1,
 )
 
-for r in range(10):
+for r in range(0):
     model = load_model(model_file_name)
     checkpoint = ModelCheckpoint(model_file_name, monitor="loss", save_best_only=True, mode="min", verbose=1)
     callbacks_list = [checkpoint]
@@ -145,7 +145,7 @@ horizon = 60  # number of days in review period (consider x days in the future f
 interval = 10  # number of days between consecutive reorder points
 
 reorder_point_arr = get_reorder_point(horizon, interval)
-n_reorder_pts = len (np.where(reorder_point_arr)[0])  # number of reorder points in review period
+n_reorder_pts = len(np.where(reorder_point_arr)[0])  # number of reorder points in review period
 history_lead_time = get_lead_time(mu_lead_time, std_lead_time, 50)
 history_demand = abs(get_demand(mu_demand, std_demand, 50))
 future_lead_time = abs(get_lead_time(mu_lead_time, std_lead_time, n_reorder_pts))
@@ -164,7 +164,7 @@ if po_reaching[-1] < horizon:
         inventory_level[i] = inventory_level[i - 1] + inventory_level[i] - future_demand[i]
         if reorder_point_arr[i] and t <= len(po_reaching):
             vm = po_reaching[t]
-            delta_t = int(np.floor(b * (po_reaching[t + 1] - po_reaching[t]) / h + b))  # s*
+            delta_t = int(np.floor(b * (po_reaching[t + 1] - po_reaching[t]) / (h + b)))  # s*
             cum_demand = np.sum(future_demand[vm:vm + delta_t])
             optimal_qty = max(cum_demand + np.sum(future_demand[i:vm]) - inventory_level[i], 0)
             inventory_level[vm] += optimal_qty
@@ -200,6 +200,27 @@ if po_reaching[-1] < horizon:
 
 test = train_input_dynamic
 # test[:, :, 0] += 20
-pred = np.round(model.predict([test, cate_feature_final[0:56]]))
+pred = np.round(model.predict([test, cate_feature_final[0:n]]))
 
-pred[:,0][np.where(reorder_point_arr)[0]]
+# recover inventory level
+rq = pred[:, 0][np.where(reorder_point_arr)[0]]
+t = 0
+inventory_level = np.zeros(horizon)
+inventory_level[0] = initial_inventory
+# generate po reaching
+po_reaching = list(np.where(reorder_point_arr)[0] + np.int32(np.ceil(future_lead_time)))
+if po_reaching[-1] < horizon:
+    po_reaching.append(po_reaching[-1] + int(np.ceil(np.diff(po_reaching).mean())))
+    optimal_rq = np.zeros(horizon)
+    for i in range(1, horizon):
+        inventory_level[i] = inventory_level[i - 1] + inventory_level[i] - future_demand[i]
+        if reorder_point_arr[i] and t <= len(po_reaching):
+            vm = po_reaching[t]
+
+            optimal_qty = rq[t]
+            inventory_level[vm] += optimal_qty
+            optimal_rq[i] = optimal_qty
+            t += 1
+
+plt.plot(inventory_level)
+plt.show()

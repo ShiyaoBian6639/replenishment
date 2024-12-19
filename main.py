@@ -17,9 +17,9 @@ service_level = 0.99
 reorder_point_arr = get_reorder_point(horizon, interval)
 n_reorder_pts = len(np.where(reorder_point_arr)[0])  # number of reorder points in review period
 history_lead_time = get_lead_time(mu_lead_time, std_lead_time, 50)
-history_demand = abs(get_demand(mu_demand, std_demand, 50))
+hm, hs, history_demand = get_demand(mu_demand, std_demand, 50)
 future_lead_time = abs(get_lead_time(mu_lead_time, std_lead_time, n_reorder_pts))
-future_demand = abs(get_demand(mu_demand, std_demand, horizon))
+fm, fs, future_demand = get_demand(mu_demand, std_demand, horizon)
 safety_stock = get_safety_stock(history_lead_time, history_demand, service_level)
 
 # deduct inventory by demand
@@ -60,8 +60,8 @@ for key, val in po.items():
 
 for val in po_reaching:
     if val < horizon:
-        line4 = ax.vlines(x=val, colors="g", ymin=0, ymax=inventory_level[val], linestyles="dotted",label=f"Order Arrival Times")
-
+        line4 = ax.vlines(x=val, colors="g", ymin=0, ymax=inventory_level[val], linestyles="dotted",
+                          label=f"Order Arrival Times")
 
 po_lst = list(po.keys())
 # for i in range(len(po_reaching)):
@@ -71,7 +71,7 @@ po_lst = list(po.keys())
 plt.title("Inventory Replenishment: Ss Policy VS Labelling Policy")
 
 b = 9
-h = 0
+h = 1
 t = 1
 # e2e recover optimal re-order quantity
 t = 0

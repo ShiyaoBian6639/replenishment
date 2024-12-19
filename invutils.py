@@ -31,4 +31,6 @@ def get_lead_time(mean, std, n):
 
 
 def get_demand(mean, std, n):
-    return np.round(np.abs(np.random.normal(loc=mean, scale=std, size=n)))
+    rand_demand = np.round(np.abs(np.random.normal(loc=mean, scale=std, size=n)))
+    cycle = mean * np.sin(np.linspace(0, 8 * np.pi, n))
+    return mean, std, np.abs(rand_demand + np.abs(cycle))
